@@ -1,0 +1,9 @@
+[package]
+name = "beeper"
+version = "0.1.0"
+authors = ["Mule <3.7mules@gmail.com>"]
+
+[dependencies]
+cpal="0.4.1"
+futures = "0.1.1"
+termion="1"
