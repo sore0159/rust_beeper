@@ -1,5 +1,3 @@
-extern crate cpal;
-
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, RwLock};
 use std::ops::RangeFrom;

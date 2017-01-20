@@ -1,68 +1,74 @@
-use std::error::Error;
-use std::io::{self, Write};
 
-use termion;
-use termion::{color, cursor};
-use termion::raw::IntoRawMode;
+use termion::{self, color};
 
-use speaker;
-
-pub struct Term {
-    out: termion::raw::RawTerminal<io::Stdout>,
-    pub log: Vec<String>,
-    pub msg_buffer: Option<MessageBuffer>,
-    pub user_buffer: Vec<char>,
-    pub user_name: String,
+pub fn format_msg(name: &str, clr: color::AnsiValue, text: &Vec<char>) -> String {
+    let mut msg: String = String::with_capacity(text.len());
+    for c in text {
+        msg.push(*c);
+    }
+    format!("{reset}<{clr}{name}{reset}> {clr}{cont}{reset}",
+            cont = &msg,
+            name = name,
+            clr = color::Fg(clr),
+            reset = color::Fg(color::Reset))
 }
 
-pub struct MessageBuffer {
-    pub name: &'static str,
-    pub color: color::AnsiValue,
-    pub buffer: Vec<char>,
-}
-
-impl From<speaker::MessageStart> for MessageBuffer {
-    fn from(start: speaker::MessageStart) -> Self {
-        MessageBuffer {
-            name: start.name,
-            color: start.color,
-            buffer: Vec::new(),
+pub fn format_buffer(width: u16,
+                     line: u16,
+                     name: &str,
+                     clr: color::AnsiValue,
+                     text: &Vec<char>)
+                     -> String {
+    let width: usize = width as usize - 1;
+    let mut msg = format!("{}", color::Fg(clr));
+    let l = text.len();
+    if let Some(skip) = l.checked_sub(width) {
+        for c in text.iter().skip(skip) {
+            msg.push(*c)
         }
-    }
-}
+    } else {
+        for c in text.iter() {
+            msg.push(*c)
+        }
+        if let Some(r) = width.checked_sub(l) {
+            if let Some(mut r) = r.checked_sub(2) {
+                msg = format!("{reset}> {}", 
+                              msg,
+                              reset = color::Fg(color::Reset),
+                              );
+                for c in name.chars().rev() {
+                    if r > 0 {
+                        msg.insert(0, c);
+                        r = r.wrapping_sub(1);
+                    } else {
+                        break;
+                    }
+                }
+                if r > 0 {
+                    msg = format!("{reset}<{clr}{}", 
+                              msg,
+                              clr = color::Fg(clr),
+                              reset = color::Fg(color::Reset),
+                              );
 
-impl io::Write for Term {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.out.write(buf)
-    }
-    fn flush(&mut self) -> io::Result<()> {
-        self.out.flush()
-    }
-}
+                } else {
+                    msg = format!("{clr}{}", 
+                              msg,
+                              clr = color::Fg(clr),
+                              );
+                }
 
-impl Term {
-    pub fn init() -> Result<Self, Box<Error>> {
-        let stdout = io::stdout().into_raw_mode()?;
-        let mut term = Term {
-            out: stdout,
-            log: Vec::new(),
-            msg_buffer: None,
-            user_buffer: Vec::new(),
-            user_name: String::new(),
-        };
-        write!(term, "{}{}", termion::clear::All, termion::cursor::Hide)?;
-        term.flush()?;
-        Ok(term)
-    }
-    pub fn clear(&mut self) -> Result<(), io::Error> {
-        write!(self, "{}", termion::clear::All)
-    }
-    pub fn draw(&mut self) -> Result<(), io::Error> {
-        self.draw_log()?;
-        self.draw_msg_buffer()?;
-        self.draw_user_buffer()?;
-        self.flush()
-    }
+            }
+        }
+    };
+    format!("{goto}{clear}{}",
+            msg,
+            goto = termion::cursor::Goto(1, line),
+            clear = termion::clear::CurrentLine,
+                                  )
+     }
+
+
     pub fn draw_log(&mut self) -> Result<(), io::Error> {
         let bottom_buffer: usize = 3;
         let right_buffer: usize = 5;
@@ -168,71 +174,3 @@ impl Term {
             .unwrap();
         self.out.flush().unwrap();
     }
-}
-
-pub fn format_msg(name: &str, clr: color::AnsiValue, text: &Vec<char>) -> String {
-    let mut msg: String = String::with_capacity(text.len());
-    for c in text {
-        msg.push(*c);
-    }
-    format!("{reset}<{clr}{name}{reset}> {clr}{cont}{reset}",
-            cont = &msg,
-            name = name,
-            clr = color::Fg(clr),
-            reset = color::Fg(color::Reset))
-}
-
-pub fn format_buffer(width: u16,
-                     line: u16,
-                     name: &str,
-                     clr: color::AnsiValue,
-                     text: &Vec<char>)
-                     -> String {
-    let width: usize = width as usize - 1;
-    let mut msg = format!("{}", color::Fg(clr));
-    let l = text.len();
-    if let Some(skip) = l.checked_sub(width) {
-        for c in text.iter().skip(skip) {
-            msg.push(*c)
-        }
-    } else {
-        for c in text.iter() {
-            msg.push(*c)
-        }
-        if let Some(r) = width.checked_sub(l) {
-            if let Some(mut r) = r.checked_sub(2) {
-                msg = format!("{reset}> {}", 
-                              msg,
-                              reset = color::Fg(color::Reset),
-                              );
-                for c in name.chars().rev() {
-                    if r > 0 {
-                        msg.insert(0, c);
-                        r = r.wrapping_sub(1);
-                    } else {
-                        break;
-                    }
-                }
-                if r > 0 {
-                    msg = format!("{reset}<{clr}{}", 
-                              msg,
-                              clr = color::Fg(clr),
-                              reset = color::Fg(color::Reset),
-                              );
-
-                } else {
-                    msg = format!("{clr}{}", 
-                              msg,
-                              clr = color::Fg(clr),
-                              );
-                }
-
-            }
-        }
-    };
-    format!("{goto}{clear}{}",
-            msg,
-            goto = termion::cursor::Goto(1, line),
-            clear = termion::clear::CurrentLine,
-                                  )
-}

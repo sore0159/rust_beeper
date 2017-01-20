@@ -1,84 +1,68 @@
-extern crate cpal;
 extern crate futures;
 extern crate termion;
+extern crate portaudio;
 
 use std::thread;
-use std::sync::mpsc;
 use std::time;
-use std::io::Write;
 
-pub mod wave;
-pub mod voice;
-pub mod beepstr;
-pub mod speaker;
 pub mod term;
+pub mod audio;
+pub mod iters;
 
 pub fn main() {
-    let mut term = term::Term::init().expect("term init failure");
-    term.user_name = "Player".to_owned();
-    term.draw().expect("term draw failure");
+    test().unwrap();
+}
 
-    let (sender, receiver) = mpsc::channel::<char>();
-    let (start_s, start_r) = mpsc::channel::<speaker::MessageStart>();
-    let (done_s, done_r) = mpsc::sync_channel::<u8>(0);
+use audio::{wave, Mixer};
+use std::io::{self, Write};
+pub fn test() -> Result<(), portaudio::Error> {
+    let mut mix = Mixer::new()?;
 
-    thread::spawn(move || {
-        loop {
-            if let Ok(_) = done_r.try_recv() {
-                term.cleanup();
-                return;
-            } else if term.msg_buffer.is_none() {
-                if let Ok(msg) = start_r.try_recv() {
-                    term.msg_buffer = Some(msg.into());
-                }
-            } else {
-                if let Ok(c) = receiver.try_recv() {
-                    if c == '\n' {
-                        term.msg_complete();
-                        term.draw().expect("term draw failure");
-                    } else {
-                        if let Some(ref mut b) = term.msg_buffer {
-                            b.buffer.push(c);
-                        }
-                        term.draw_msg_buffer().expect("term draw msg failure");
-                        term.flush().expect("term flush failure");
-                    }
-                }
-            }
+    let char_speed = 100;
+    let text = "Well, I think this whole thing needs lots more testing!";
+    // let text = "Hmm...        HMMMMMMMMMM!        ";
+    let wv = speech_wave(text, char_speed);
+    let backwards_wv = speech_wave(text, char_speed).rev();
+
+    mix.new_stream(wv)?;
+    try!(mix.start());
+
+    for c in text.chars() {
+        print!("{}", c);
+        io::stdout().flush().unwrap();
+        thread::sleep(time::Duration::from_millis(char_speed as u64));
+    }
+    thread::sleep(time::Duration::from_millis(char_speed as u64));
+    try!(mix.stop());
+
+    println!("\nForward Test finished.");
+    mix.new_stream(backwards_wv)?;
+    try!(mix.start());
+    for c in text.chars().rev() {
+        print!("{}", c);
+        io::stdout().flush().unwrap();
+        thread::sleep(time::Duration::from_millis(char_speed as u64));
+    }
+    thread::sleep(time::Duration::from_millis(char_speed as u64));
+    try!(mix.stop());
+    println!("\nBackwards Test finished.");
+    Ok(())
+}
+
+fn speech_wave(text: &str, char_speed: usize) -> Box<DoubleEndedIterator<Item = f32>> {
+    let mut pitches: Vec<usize> = Vec::new();
+    for (i, c) in text.chars().enumerate() {
+        if c.is_whitespace() {
+            pitches.push(0);
+            continue;
         }
-    });
-    // let mut vc = voice::MyVoice::<beepstr::BeepWriter>::init();
-    let mut vc = voice::FakeVoice::new();
-
-    let tester = speaker::Speaker::new("Testing Robot",
-                                       6000,
-                                       2.0 / vc.samples_rate,
-                                       5,
-                                       5,
-                                       0,
-                                       Some(sender.clone()));
-
-
-    start_s.send(tester.start_msg()).expect("start_s send failure");
-    vc.play_till_done(tester.make_msg("Hello, world! "));
-    thread::sleep(time::Duration::from_secs(1));
-
-    start_s.send(tester.start_msg()).expect("start_s send failure");
-    vc.play_till_done(tester.make_msg("This is an extended test!  Very exciting, I think. "));
-    thread::sleep(time::Duration::from_secs(1));
-
-
-    let tester2 = speaker::Speaker::new("Other Robot",
-                                        5000,
-                                        1.5 / vc.samples_rate,
-                                        0,
-                                        5,
-                                        0,
-                                        Some(sender.clone()));
-
-    start_s.send(tester2.start_msg()).expect("start_s send failure");
-    vc.play_till_done(tester2.make_msg("What if... ANOTHER, more SINISTER testing robot was part of the test!  dun dun  DUUUUUUNNNN! "));
-    thread::sleep(time::Duration::from_secs(1));
-
-    done_s.send(0).expect("done send failure");
+        let p = match i % 4 {
+            0 => 125,
+            1 => 150,
+            3 => 200,
+            _ => 100,
+        };
+        pitches.push(p);
+    }
+    wave::bookend(wave::multi_wave(&pitches, char_speed), char_speed / 4)
 }
