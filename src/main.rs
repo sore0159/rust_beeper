@@ -10,7 +10,31 @@ pub mod audio;
 pub mod iters;
 
 pub fn main() {
-    test().unwrap();
+    test2().unwrap();
+}
+
+pub fn test2() -> Result<(), portaudio::Error> {
+    let (p1, p2) = (100, 200);
+    let speed = 100;
+    let wv1 = wave::make_wave(p1, speed);
+    let wv2 = wave::make_wave(p2, speed);
+    let slide1 = wave::make_wave_transition(p1, p2, speed);
+    let slide2 = wave::make_wave_transition(p2, p1, speed);
+    let text = "Hello, wavy world!";
+
+    let mut out = io::stdout();
+    let mut mix = Mixer::new()?;
+    mix.new_stream(wv1.chain(slide1).chain(wv2).chain(slide2).cycle())?;
+    try!(mix.start());
+    for c in text.chars() {
+        print!("{}", c);
+        out.flush().unwrap();
+        thread::sleep(time::Duration::from_millis(speed as u64));
+    }
+    println!("");
+    thread::sleep(time::Duration::from_millis(1000));
+    println!("Test complete!");
+    Ok(())
 }
 
 use audio::{wave, Mixer};
