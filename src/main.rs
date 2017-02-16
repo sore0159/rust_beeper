@@ -4,8 +4,8 @@ extern crate portaudio;
 pub mod term;
 pub mod audio;
 pub mod iters;
-pub mod mocks;
+pub mod trials;
 
 fn main() {
-    mocks::term_mock().unwrap();
+    trials::term_mock().unwrap();
 }

@@ -4,5 +4,6 @@ version = "0.1.0"
 authors = ["Mule <3.7mules@gmail.com>"]
 
 [dependencies]
+mule_audio = { path = "../mule_audio" }
 portaudio="*"
 termion="*"

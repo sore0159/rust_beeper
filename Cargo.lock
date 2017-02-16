@@ -2,6 +2,7 @@
 name = "beeper"
 version = "0.1.0"
 dependencies = [
+ "mule_audio 0.1.0",
  "portaudio 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "termion 1.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -15,6 +16,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 name = "libc"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "mule_audio"
+version = "0.1.0"
+dependencies = [
+ "portaudio 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "num"
